@@ -1,0 +1,16 @@
+{
+  "id": "consultancy",
+  "label": "Consultancy and management",
+  "routing_keywords": {
+    "consultancy": 5,
+    "consulting": 4,
+    "client": 3,
+    "stakeholder": 2,
+    "soft systems": 5,
+    "ssm": 5,
+    "catwoe": 5,
+    "recommendation": 2,
+    "implementation": 1
+  },
+  "method_document": "overlays/consultancy.md"
+}

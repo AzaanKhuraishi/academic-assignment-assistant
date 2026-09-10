@@ -1,0 +1,16 @@
+{
+  "id": "cybersecurity",
+  "label": "Cybersecurity",
+  "routing_keywords": {
+    "cybersecurity": 5,
+    "security": 1,
+    "threat model": 4,
+    "vulnerability": 4,
+    "incident response": 4,
+    "network": 1,
+    "malware": 4,
+    "exploit": 4,
+    "risk assessment": 3
+  },
+  "method_document": "overlays/cybersecurity.md"
+}

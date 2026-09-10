@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Discipline routing profile",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "label", "routing_keywords", "method_document"],
+  "properties": {
+    "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+    "label": { "type": "string", "minLength": 1 },
+    "routing_keywords": {
+      "type": "object",
+      "additionalProperties": { "type": "integer", "minimum": 1 }
+    },
+    "method_document": { "type": "string", "pattern": "^overlays/.+\\.md$" }
+  }
+}

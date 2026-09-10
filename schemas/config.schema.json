@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Academic Assignment Assistant configuration",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "jurisdiction",
+    "academic_level",
+    "discipline",
+    "citation_style",
+    "human_approval",
+    "max_autonomous_retries",
+    "external_research",
+    "runtime_adapter"
+  ],
+  "properties": {
+    "jurisdiction": { "type": "string", "minLength": 1 },
+    "academic_level": { "type": "string", "minLength": 1 },
+    "discipline": {
+      "enum": ["auto", "generic", "consultancy", "cybersecurity", "cryptography", "humanities"]
+    },
+    "citation_style": { "type": "string", "minLength": 1 },
+    "human_approval": { "const": true },
+    "max_autonomous_retries": { "type": "integer", "minimum": 0 },
+    "external_research": { "enum": ["ask", "allow", "deny"] },
+    "runtime_adapter": { "type": "string", "minLength": 1 }
+  }
+}

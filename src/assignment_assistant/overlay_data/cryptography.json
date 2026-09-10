@@ -1,0 +1,16 @@
+{
+  "id": "cryptography",
+  "label": "Cryptography",
+  "routing_keywords": {
+    "cryptography": 5,
+    "cipher": 4,
+    "encryption": 3,
+    "decryption": 3,
+    "aes": 5,
+    "rsa": 5,
+    "elliptic curve": 5,
+    "nonce": 4,
+    "proof": 2
+  },
+  "method_document": "overlays/cryptography.md"
+}

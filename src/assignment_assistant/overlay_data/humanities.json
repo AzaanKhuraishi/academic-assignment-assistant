@@ -1,0 +1,16 @@
+{
+  "id": "humanities",
+  "label": "Humanities and history",
+  "routing_keywords": {
+    "history": 3,
+    "historical": 3,
+    "historiography": 5,
+    "primary source": 4,
+    "archive": 2,
+    "literature": 2,
+    "textual analysis": 4,
+    "empire": 2,
+    "discourse": 2
+  },
+  "method_document": "overlays/humanities.md"
+}

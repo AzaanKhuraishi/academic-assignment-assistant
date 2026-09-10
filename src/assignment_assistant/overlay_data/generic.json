@@ -1,0 +1,6 @@
+{
+  "id": "generic",
+  "label": "Generic academic work",
+  "routing_keywords": {},
+  "method_document": "overlays/generic.md"
+}

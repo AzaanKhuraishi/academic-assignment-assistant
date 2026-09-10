@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Persisted assignment state",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "assignment_id",
+    "created_at",
+    "updated_at",
+    "phase",
+    "config",
+    "approvals",
+    "slices",
+    "user_inputs",
+    "events"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "assignment_id": { "type": "string", "format": "uuid" },
+    "created_at": { "type": "string", "format": "date-time" },
+    "updated_at": { "type": "string", "format": "date-time" },
+    "phase": {
+      "enum": [
+        "NEW",
+        "BRIEFING_REQUIRED",
+        "WAITING_GATE_1",
+        "ARCHITECTURE_REQUIRED",
+        "WAITING_GATE_2",
+        "EXECUTION",
+        "FINAL_VALIDATION",
+        "REQUIRES_USER_INPUT",
+        "READY_FOR_HANDOFF"
+      ]
+    },
+    "resume_phase": { "type": ["string", "null"] },
+    "config": { "type": "object" },
+    "capability_manifest": { "type": ["string", "null"] },
+    "source_manifest": { "type": ["string", "null"] },
+    "source_index": { "type": ["string", "null"] },
+    "routing": { "type": "object" },
+    "briefing_artifact": { "type": ["string", "null"] },
+    "architecture_artifact": { "type": ["string", "null"] },
+    "approvals": { "type": "array", "items": { "type": "object" } },
+    "slices": { "type": "object", "additionalProperties": { "type": "object" } },
+    "user_inputs": { "type": "array", "items": { "type": "object" } },
+    "quality_reports": { "type": "array", "items": { "type": "string" } },
+    "events": { "type": "array", "items": { "type": "object" } }
+  }
+}

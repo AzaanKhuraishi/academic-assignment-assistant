@@ -1,0 +1,17 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.coverage
+build/
+dist/
+.venv/
+
+# Real assignments and generated state are never repository content.
+workspace/
+workspaces/
+.assignment-assistant/
+
+# Office and operating-system debris.
+.DS_Store
+~$*
