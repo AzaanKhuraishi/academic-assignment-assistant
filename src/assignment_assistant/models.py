@@ -9,6 +9,10 @@ from typing import Any, Dict, List, Optional
 
 class AssignmentPhase(str, Enum):
     NEW = "NEW"
+    SOURCE_INTAKE_REQUIRED = "SOURCE_INTAKE_REQUIRED"
+    SOURCE_FRESHNESS_REQUIRED = "SOURCE_FRESHNESS_REQUIRED"
+    SOURCE_UPDATE_REQUIRED = "SOURCE_UPDATE_REQUIRED"
+    SOURCE_IMPACT_REQUIRED = "SOURCE_IMPACT_REQUIRED"
     BRIEFING_REQUIRED = "BRIEFING_REQUIRED"
     WAITING_GATE_1 = "WAITING_GATE_1"
     ARCHITECTURE_REQUIRED = "ARCHITECTURE_REQUIRED"
@@ -79,12 +83,18 @@ class AssignmentState:
     assignment_id: str
     created_at: str
     updated_at: str
-    phase: str = AssignmentPhase.NEW.value
+    phase: str = AssignmentPhase.SOURCE_INTAKE_REQUIRED.value
     resume_phase: Optional[str] = None
+    freshness_resume_phase: Optional[str] = None
+    last_substantive_activity_at: Optional[str] = None
     config: Dict[str, Any] = field(default_factory=dict)
     capability_manifest: Optional[str] = None
     source_manifest: Optional[str] = None
     source_index: Optional[str] = None
+    registered_sources: List[str] = field(default_factory=list)
+    source_confirmed_at: Optional[str] = None
+    source_updates: List[Dict[str, Any]] = field(default_factory=list)
+    pending_source_change_report: Optional[str] = None
     routing: Dict[str, Any] = field(default_factory=dict)
     briefing_artifact: Optional[str] = None
     architecture_artifact: Optional[str] = None
@@ -100,16 +110,24 @@ class AssignmentState:
     @classmethod
     def from_dict(cls, raw: Dict[str, Any]) -> "AssignmentState":
         return cls(
-            schema_version=int(raw["schema_version"]),
+            schema_version=max(2, int(raw["schema_version"])),
             assignment_id=str(raw["assignment_id"]),
             created_at=str(raw["created_at"]),
             updated_at=str(raw["updated_at"]),
             phase=str(raw.get("phase", AssignmentPhase.NEW.value)),
             resume_phase=raw.get("resume_phase"),
+            freshness_resume_phase=raw.get("freshness_resume_phase"),
+            last_substantive_activity_at=raw.get(
+                "last_substantive_activity_at", raw.get("updated_at")
+            ),
             config=dict(raw.get("config", {})),
             capability_manifest=raw.get("capability_manifest"),
             source_manifest=raw.get("source_manifest"),
             source_index=raw.get("source_index"),
+            registered_sources=list(raw.get("registered_sources", [])),
+            source_confirmed_at=raw.get("source_confirmed_at"),
+            source_updates=list(raw.get("source_updates", [])),
+            pending_source_change_report=raw.get("pending_source_change_report"),
             routing=dict(raw.get("routing", {})),
             briefing_artifact=raw.get("briefing_artifact"),
             architecture_artifact=raw.get("architecture_artifact"),

@@ -5,6 +5,11 @@ overlays may add stricter rules but may not weaken these safeguards.
 
 ## Stage 0 — Intake and source control
 
+Begin with a Source Intake Gate. Ask the user to provide or identify the material that
+should become the registered assignment corpus. Do not treat ambient files, previous
+partial intake or other material visible in the surrounding Codex session as complete
+or authoritative input. Index only the sources the user explicitly selects.
+
 Locate the exact task, brief, rubric, learning outcomes, submission rules, word count,
 citation style, permitted appendices, academic-integrity requirements, case material,
 user notes and restrictions on research or AI use.
@@ -13,6 +18,13 @@ Hash every file. Treat identical hashes as one source. Treat similarly named fil
 with different hashes as distinct versions until their differences are resolved.
 Preserve originals and record the provenance of derived reading copies and transcripts.
 Unreadable material is an evidence gap, not permission to infer its content.
+
+When substantive work resumes after approximately six hours of inactivity, pause at a
+Source Freshness Gate and ask whether new or updated assignment/module material is
+available. A negative answer resumes the saved phase. A positive answer requires the
+user to supply the new material, incremental intake, a file-level change report and an
+impact assessment before work resumes. Reopen the briefing, architecture or affected
+slices only when the recorded impact requires it.
 
 ## Gate 1 — Assessment briefing
 

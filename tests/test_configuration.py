@@ -12,6 +12,7 @@ class ConfigurationTests(unittest.TestCase):
         self.assertEqual(config["discipline"], "auto")
         self.assertTrue(config["human_approval"])
         self.assertEqual(config["external_research"], "ask")
+        self.assertEqual(config["source_freshness_hours"], 6)
 
     def test_unknown_key_is_rejected(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -25,6 +26,13 @@ class ConfigurationTests(unittest.TestCase):
             path = Path(temporary) / "config.yaml"
             path.write_text("human_approval: false\n", encoding="utf-8")
             with self.assertRaisesRegex(ConfigurationError, "must remain true"):
+                load_config(path)
+
+    def test_source_freshness_threshold_must_be_positive(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "config.yaml"
+            path.write_text("source_freshness_hours: 0\n", encoding="utf-8")
+            with self.assertRaisesRegex(ConfigurationError, "positive integer"):
                 load_config(path)
 
 

@@ -9,7 +9,7 @@ operates the protected workflow behind the scenes.
 1. Connect GitHub to Codex and give Codex access to this repository.
 2. Open this repository in a new Codex task.
 3. Say: **“Set up Academic Assignment Assistant and start a new assignment.”**
-4. When Codex asks, provide your assignment files, a ZIP source pack, or the
+4. Codex will always ask what source material to use. Provide your assignment files, a ZIP source pack, or the
    location of a folder Codex can access.
 5. Review Codex's interpretation and plan, then approve or correct them in the
    conversation as the work progresses.
@@ -24,6 +24,11 @@ Codex reads `AGENTS.md`, checks the repository and computer, prepares an isolate
 local environment, installs the internal engine and creates a private assignment
 workspace. It then places the supplied materials in the correct location, indexes
 them without altering the originals and starts the intake workflow.
+
+The Assistant does not assume that files already visible in an existing Codex task or
+workspace are the complete assignment corpus. Only material the student explicitly
+provides or identifies is registered. After about six hours of inactivity, it asks
+whether new or updated material is available before substantive work continues.
 
 Codex translates ordinary requests such as “start my assignment”, “I approve the
 briefing”, “this argument needs more evidence” and “accept this section” into the
@@ -47,6 +52,9 @@ and it does not delete or overwrite the student's source files.
 ## Safeguards that remain active
 
 - Supplied originals are preserved and exact duplicates are detected by SHA-256.
+- Ambient files are excluded until the student explicitly selects them.
+- Source freshness is confirmed after a six-hour inactive gap; updates receive
+  incremental intake and impact review.
 - Facts, external evidence, analysis and personal experience remain distinct.
 - Gate 1 blocks progress until the student approves the interpretation.
 - Gate 2 blocks drafting until the student approves the architecture and word budget.
@@ -74,7 +82,7 @@ Put the brief, rubric, teaching material and supplied case files into
 `workspace/source/`, then run:
 
 ```bash
-assignment-assistant start workspace
+assignment-assistant start workspace --source source
 assignment-assistant next-task workspace
 assignment-assistant status workspace
 ```

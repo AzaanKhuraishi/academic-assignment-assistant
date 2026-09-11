@@ -4,10 +4,30 @@ import unittest
 import zipfile
 from pathlib import Path
 
-from assignment_assistant.bootstrap import BootstrapError, ingest_source_path
+from assignment_assistant.bootstrap import BootstrapError, ingest_source_path, main as bootstrap_main
+from assignment_assistant.models import AssignmentPhase
+from assignment_assistant.storage import load_state
 
 
 class BootstrapTests(unittest.TestCase):
+    def test_bootstrap_registers_only_the_user_supplied_source(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            workspace = root / "workspace"
+            supplied = root / "brief.md"
+            supplied.write_text("Explicit assignment brief", encoding="utf-8")
+
+            self.assertEqual(
+                bootstrap_main(
+                    ["--workspace", str(workspace), "--source", str(supplied), "--start"]
+                ),
+                0,
+            )
+
+            state = load_state(workspace)
+            self.assertEqual(state.phase, AssignmentPhase.BRIEFING_REQUIRED.value)
+            self.assertEqual(state.registered_sources, ["source/brief.md"])
+
     def test_shared_pack_imports_inner_source_directory_only(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -24,6 +44,10 @@ class BootstrapTests(unittest.TestCase):
             self.assertEqual(result.copied, 1)
             self.assertTrue((workspace / "source/governing/brief.md").is_file())
             self.assertFalse((workspace / "source/README.md").exists())
+            self.assertEqual(
+                result.selected_files,
+                [str((workspace / "source/governing/brief.md").resolve())],
+            )
 
     def test_exact_copy_is_skipped_and_different_version_is_preserved(self):
         with tempfile.TemporaryDirectory() as temporary:

@@ -38,8 +38,10 @@ management, configuration and task packets remain implementation infrastructure.
 `scripts/codex_bootstrap.py` provides an idempotent bridge from a fresh checkout. It
 checks the Python prerequisite, prepares the private environment, installs the local
 engine, creates an ignored workspace and can safely import a file, directory or ZIP
-before starting intake. It never replaces existing assignment state or overwrites a
-different source file with the same name.
+before starting intake. The bootstrap passes the exact files copied from the
+user-selected locations into the engine; the engine does not infer authority from
+other files already present. It never replaces existing assignment state or
+overwrites a different source file with the same name.
 
 ```text
 student conversation
@@ -74,6 +76,8 @@ The persisted JSON state contains:
 - Assignment identifier, schema version and timestamps
 - Configuration and selected discipline
 - Source manifest and index locations
+- Explicitly registered source paths and source-confirmation time
+- Last substantive activity, suspended freshness phase and source-update reports
 - Gate artefacts and approval records
 - Slice state, artefacts, feedback and retry counts
 - Open and resolved user-input requests
@@ -82,7 +86,7 @@ The persisted JSON state contains:
 Assignment phases are:
 
 ```text
-NEW
+SOURCE_INTAKE_REQUIRED
   → BRIEFING_REQUIRED
   → WAITING_GATE_1
   → ARCHITECTURE_REQUIRED
@@ -93,10 +97,15 @@ NEW
 ```
 
 `REQUIRES_USER_INPUT` is a resumable interruption from any substantive phase.
+`SOURCE_FRESHNESS_REQUIRED` is a separate resumable interruption. A yes response moves
+through `SOURCE_UPDATE_REQUIRED` and `SOURCE_IMPACT_REQUIRED`; a no response restores
+the exact saved phase. The default inactivity threshold is six hours.
 
 ## Source pipeline
 
-The intake engine scans only `source/`, computes SHA-256 hashes and creates an index.
+The intake engine resolves only user-confirmed selections within `source/`, computes
+SHA-256 hashes and creates an index. Unselected files in that directory remain ambient
+and are excluded from the registered corpus.
 It never overwrites originals. Dependency-free reading copies are generated for DOCX,
 PPTX and ODT by extracting packaged XML. Text formats are read directly. PDF and video
 remain explicitly unread until a capable extractor or transcription tool records a

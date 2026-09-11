@@ -4,5 +4,6 @@ discipline: auto
 citation_style: auto
 human_approval: true
 max_autonomous_retries: 3
+source_freshness_hours: 6
 external_research: ask
 runtime_adapter: codex

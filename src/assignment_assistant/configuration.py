@@ -13,6 +13,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "citation_style": "auto",
     "human_approval": True,
     "max_autonomous_retries": 3,
+    "source_freshness_hours": 6,
     "external_research": "ask",
     "runtime_adapter": "codex",
 }
@@ -87,6 +88,13 @@ def validate_config(config: Dict[str, Any]) -> None:
     retries = config.get("max_autonomous_retries")
     if not isinstance(retries, int) or isinstance(retries, bool) or retries < 0:
         raise ConfigurationError("max_autonomous_retries must be a non-negative integer")
+    freshness_hours = config.get("source_freshness_hours")
+    if (
+        not isinstance(freshness_hours, int)
+        or isinstance(freshness_hours, bool)
+        or freshness_hours <= 0
+    ):
+        raise ConfigurationError("source_freshness_hours must be a positive integer")
     if config.get("external_research") not in {"ask", "allow", "deny"}:
         raise ConfigurationError("external_research must be ask, allow, or deny")
     if config.get("human_approval") is not True:
@@ -101,6 +109,7 @@ discipline: auto
 citation_style: auto
 human_approval: true
 max_autonomous_retries: 3
+source_freshness_hours: 6
 external_research: ask
 runtime_adapter: codex
 """

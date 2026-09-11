@@ -1,6 +1,7 @@
 import json
 import tempfile
 import unittest
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from assignment_assistant.configuration import DEFAULT_CONFIG
@@ -14,9 +15,13 @@ from assignment_assistant.orchestration import (
     begin_final_validation,
     mark_ready_for_handoff,
     record_intake,
+    record_source_freshness_answer,
+    record_source_update,
     reject_slice,
+    require_source_freshness_if_due,
     require_user_input,
     resolve_user_input,
+    resolve_source_impact,
     submit_architecture,
     submit_briefing,
 )
@@ -36,6 +41,7 @@ class WorkflowTests(unittest.TestCase):
             "assignment/research/source-manifest.json",
             "SOURCE_INDEX.md",
             {"discipline": "consultancy", "requires_confirmation": False},
+            ["source/brief.md"],
         )
 
     def tearDown(self):
@@ -122,6 +128,44 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(self.state.phase, AssignmentPhase.REQUIRES_USER_INPUT.value)
         resolve_user_input(self.state, request.request_id, "I challenged the initial scope.")
         self.assertEqual(self.state.phase, AssignmentPhase.EXECUTION.value)
+
+    def test_source_freshness_gate_pauses_and_resumes_exact_phase(self):
+        self._approve_architecture()
+        now = datetime.now(timezone.utc).replace(microsecond=0)
+        self.state.last_substantive_activity_at = (now - timedelta(hours=6)).isoformat()
+
+        self.assertTrue(require_source_freshness_if_due(self.state, 6, now))
+        self.assertEqual(self.state.phase, AssignmentPhase.SOURCE_FRESHNESS_REQUIRED.value)
+        self.assertEqual(self.state.freshness_resume_phase, AssignmentPhase.EXECUTION.value)
+
+        record_source_freshness_answer(self.state, False)
+        self.assertEqual(self.state.phase, AssignmentPhase.EXECUTION.value)
+        self.assertIsNone(self.state.freshness_resume_phase)
+
+    def test_source_update_requires_impact_and_can_reopen_briefing(self):
+        briefing = self.workspace / "assignment/briefing/ASSESSMENT_BRIEFING.md"
+        briefing.write_text("Old briefing", encoding="utf-8")
+        submit_briefing(self.state, self.workspace, briefing)
+        self.state.last_substantive_activity_at = "2026-01-01T00:00:00+00:00"
+        now = datetime(2026, 1, 1, 6, 0, tzinfo=timezone.utc)
+        require_source_freshness_if_due(self.state, 6, now)
+        record_source_freshness_answer(self.state, True)
+        record_source_update(
+            self.state,
+            "assignment/research/source-manifest.json",
+            "SOURCE_INDEX.md",
+            {"discipline": "consultancy", "requires_confirmation": False},
+            ["source/brief.md", "source/updated-rubric.md"],
+            "assignment/research/source-change.json",
+            {"added": ["source/updated-rubric.md"], "updated": [], "removed": []},
+        )
+        self.assertEqual(self.state.phase, AssignmentPhase.SOURCE_IMPACT_REQUIRED.value)
+
+        impact = self.workspace / "assignment/research/SOURCE_IMPACT.md"
+        impact.write_text("The revised rubric changes assessed requirements.", encoding="utf-8")
+        resolve_source_impact(self.state, self.workspace, impact, "briefing")
+        self.assertEqual(self.state.phase, AssignmentPhase.BRIEFING_REQUIRED.value)
+        self.assertIsNone(self.state.briefing_artifact)
 
 
 if __name__ == "__main__":

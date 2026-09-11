@@ -7,7 +7,7 @@ produce reading copies where supported and identify inaccessible formats.
 
 ## Inputs
 
-- Workspace `source/` tree
+- Source files or folders explicitly selected by the user
 - File-processing capabilities
 
 ## Outputs
@@ -19,5 +19,7 @@ produce reading copies where supported and identify inaccessible formats.
 
 ## Must not
 
-Move or overwrite originals, interpret assessment requirements, or infer the contents
-of a file that was not extracted or inspected.
+Treat ambient workspace/session files as assignment input, move or overwrite originals,
+interpret assessment requirements, or infer the contents of a file that was not
+extracted or inspected. For an incremental update, report added, updated, removed and
+unchanged material before handing the change set to impact assessment.

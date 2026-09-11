@@ -31,15 +31,47 @@ class CodexAdapter:
             "commands or interpret internal state; report the outcome and next human "
             "decision in plain language.\n"
         )
-        if phase == AssignmentPhase.NEW:
+        if phase in {AssignmentPhase.NEW, AssignmentPhase.SOURCE_INTAKE_REQUIRED}:
             action = (
-                "Check whether source/ contains assignment material. If it is empty, ask "
-                "the user to attach files or provide an accessible file, ZIP or folder "
-                "location. Preserve supplied originals, then run source intake before "
-                "interpreting the assignment."
+                "Stop and explicitly ask the user to provide or identify the assignment and "
+                "module material they want this assignment to use. Do not inspect, infer, or "
+                "register ambient files, earlier partial intake, or other material already "
+                "visible in the Codex session or workspace. Only after the user identifies the "
+                "source corpus, preserve those supplied originals and start intake with each "
+                "selected path passed explicitly."
             )
             contract = "agents/contracts/intake.md"
-            next_command = f"{engine} start {quoted_workspace}"
+            next_command = f"{engine} start {quoted_workspace} --source <confirmed-source-path>"
+        elif phase == AssignmentPhase.SOURCE_FRESHNESS_REQUIRED:
+            action = (
+                "Stop and ask: Has any new or updated assignment or module material become "
+                "available since we last worked? Record an explicit yes or no before continuing."
+            )
+            contract = "agents/contracts/intake.md"
+            next_command = f"{engine} source-freshness {quoted_workspace} <yes-or-no>"
+        elif phase == AssignmentPhase.SOURCE_UPDATE_REQUIRED:
+            action = (
+                "Stop and ask the user to provide or identify the new or updated material. "
+                "Preserve only what they supply, then run incremental source intake. Do not "
+                "treat other visible files as part of the update."
+            )
+            contract = "agents/contracts/intake.md"
+            next_command = (
+                f"{engine} refresh-sources {quoted_workspace} --source <confirmed-new-source-path>"
+            )
+        elif phase == AssignmentPhase.SOURCE_IMPACT_REQUIRED:
+            report = state.pending_source_change_report or "the recorded source change report"
+            action = (
+                f"Read {report}, identify what was added or updated, and assess whether the "
+                "change affects the briefing, architecture, existing slices, or none of them. "
+                "Write assignment/research/SOURCE_IMPACT.md, explain the result to the user, "
+                "then record the impact so the workflow resumes at the appropriate phase."
+            )
+            contract = "agents/contracts/intake.md"
+            next_command = (
+                f"{engine} resolve-source-impact {quoted_workspace} "
+                "assignment/research/SOURCE_IMPACT.md <none|briefing|architecture|slices>"
+            )
         elif phase == AssignmentPhase.BRIEFING_REQUIRED:
             if state.routing.get("requires_confirmation"):
                 contract = "agents/contracts/subject-router.md"

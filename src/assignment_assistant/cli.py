@@ -13,6 +13,7 @@ from .adapters.codex import CodexAdapter
 from .capabilities import write_capability_manifest
 from .configuration import ALLOWED_DISCIPLINES, ConfigurationError, load_config, update_config_value
 from .intake import run_intake
+from .models import AssignmentPhase
 from .orchestration import (
     TransitionError,
     accept_slice,
@@ -23,8 +24,13 @@ from .orchestration import (
     confirm_discipline,
     mark_ready_for_handoff,
     record_intake,
+    record_source_freshness_answer,
+    record_source_update,
     reject_slice,
+    require_source_freshness_if_due,
+    require_source_intake_if_unconfirmed,
     require_user_input,
+    resolve_source_impact,
     resolve_user_input,
     submit_architecture,
     submit_briefing,
@@ -67,8 +73,38 @@ def build_parser() -> argparse.ArgumentParser:
     init = sub.add_parser("init", help="Create a new assignment workspace")
     init.add_argument("workspace")
 
-    start = sub.add_parser("start", help="Index sources and begin assignment intake")
+    start = sub.add_parser("start", help="Index explicitly selected sources and begin intake")
     start.add_argument("workspace")
+    start.add_argument(
+        "--source",
+        action="append",
+        required=True,
+        help="A user-confirmed file or directory inside workspace/source",
+    )
+
+    freshness = sub.add_parser(
+        "source-freshness", help="Record whether new or updated source material is available"
+    )
+    freshness.add_argument("workspace")
+    freshness.add_argument("answer", choices=("yes", "no"))
+
+    refresh = sub.add_parser(
+        "refresh-sources", help="Incrementally register explicitly supplied source material"
+    )
+    refresh.add_argument("workspace")
+    refresh.add_argument(
+        "--source",
+        action="append",
+        required=True,
+        help="A newly supplied file or directory inside workspace/source",
+    )
+
+    impact = sub.add_parser(
+        "resolve-source-impact", help="Record how a source update affects existing work"
+    )
+    impact.add_argument("workspace")
+    impact.add_argument("artifact")
+    impact.add_argument("impact", choices=("none", "briefing", "architecture", "slices"))
 
     status = sub.add_parser("status", help="Show current workflow state")
     status.add_argument("workspace")
@@ -190,9 +226,46 @@ def run(args: argparse.Namespace) -> int:
 
     workspace, state = _load(args.workspace)
 
+    gate_check_commands = {
+        "status",
+        "next-task",
+        "confirm-discipline",
+        "register-derived",
+        "submit-briefing",
+        "submit-architecture",
+        "approve",
+        "slice-create",
+        "slice-advance",
+        "slice-accept",
+        "slice-reject",
+        "require-input",
+        "resolve-input",
+        "begin-final-validation",
+        "quality-check",
+        "mark-ready",
+    }
+    if command in gate_check_commands:
+        gate_changed = require_source_intake_if_unconfirmed(state)
+        if not gate_changed:
+            threshold = int(state.config.get("source_freshness_hours", 6))
+            gate_changed = require_source_freshness_if_due(state, threshold)
+        if gate_changed:
+            save_state(workspace, state)
+            if command not in {"status", "next-task"}:
+                raise TransitionError(
+                    "A source checkpoint must be resolved before substantive work continues"
+                )
+
     if command == "start":
+        if state.phase not in {
+            AssignmentPhase.NEW.value,
+            AssignmentPhase.SOURCE_INTAKE_REQUIRED.value,
+            AssignmentPhase.BRIEFING_REQUIRED.value,
+        }:
+            raise TransitionError(f"Cannot run intake while phase is {state.phase}")
         config = load_config(workspace / "assignment-assistant.yaml")
-        result = run_intake(workspace)
+        selections = list(state.registered_sources) + list(args.source)
+        result = run_intake(workspace, selections)
         routing = route_subject(str(result["routing_text"]), str(config["discipline"]))
         record_intake(
             state,
@@ -200,6 +273,7 @@ def run(args: argparse.Namespace) -> int:
             str(result["manifest_path"]),
             str(result["index_path"]),
             routing,
+            list(result["registered_sources"]),
         )
         save_state(workspace, state)
         print(f"Indexed {result['manifest']['source_count']} files")
@@ -207,6 +281,74 @@ def run(args: argparse.Namespace) -> int:
         if routing["requires_confirmation"]:
             print("Discipline routing requires user confirmation")
         print("Next: produce and submit the Gate 1 assessment briefing")
+        return 0
+
+    if command == "source-freshness":
+        record_source_freshness_answer(state, args.answer == "yes")
+        save_state(workspace, state)
+        print(f"Phase: {state.phase}")
+        return 0
+
+    if command == "refresh-sources":
+        if state.phase != AssignmentPhase.SOURCE_UPDATE_REQUIRED.value:
+            raise TransitionError(f"Cannot update sources while phase is {state.phase}")
+        previous_manifest = {}
+        if state.source_manifest:
+            manifest_path = workspace / state.source_manifest
+            if manifest_path.is_file():
+                previous_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        selections = list(state.registered_sources) + list(args.source)
+        result = run_intake(workspace, selections)
+        config = load_config(workspace / "assignment-assistant.yaml")
+        routing = route_subject(str(result["routing_text"]), str(config["discipline"]))
+        old_records = {
+            item["path"]: item["sha256"] for item in previous_manifest.get("records", [])
+        }
+        new_records = {
+            item["path"]: item["sha256"] for item in result["manifest"].get("records", [])
+        }
+        changes = {
+            "added": sorted(path for path in new_records if path not in old_records),
+            "updated": sorted(
+                path
+                for path in new_records
+                if path in old_records and new_records[path] != old_records[path]
+            ),
+            "removed": sorted(path for path in old_records if path not in new_records),
+            "unchanged_count": sum(
+                1
+                for path, digest in new_records.items()
+                if old_records.get(path) == digest
+            ),
+        }
+        stamp = utc_now().replace(":", "").replace("+0000", "Z")
+        report_path = workspace / "assignment" / "research" / f"source-change-{stamp}.json"
+        write_json(report_path, changes)
+        relative_report = report_path.relative_to(workspace).as_posix()
+        record_source_update(
+            state,
+            str(result["manifest_path"]),
+            str(result["index_path"]),
+            routing,
+            list(result["registered_sources"]),
+            relative_report,
+            changes,
+        )
+        save_state(workspace, state)
+        print(json.dumps(changes, indent=2, sort_keys=True))
+        print(f"Change report: {relative_report}")
+        print(f"Phase: {state.phase}")
+        return 0
+
+    if command == "resolve-source-impact":
+        resolve_source_impact(
+            state,
+            workspace,
+            _artifact_argument(workspace, args.artifact),
+            args.impact,
+        )
+        save_state(workspace, state)
+        print(f"Phase: {state.phase}")
         return 0
 
     if command == "status":

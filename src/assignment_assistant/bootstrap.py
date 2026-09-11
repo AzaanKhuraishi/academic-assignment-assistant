@@ -13,7 +13,7 @@ import sys
 import tempfile
 import venv
 import zipfile
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 from typing import List, Optional, Sequence
 
@@ -32,11 +32,13 @@ class IngestResult:
     copied: int = 0
     skipped_exact: int = 0
     renamed_conflicts: int = 0
+    selected_files: List[str] = field(default_factory=list)
 
     def add(self, other: "IngestResult") -> None:
         self.copied += other.copied
         self.skipped_exact += other.skipped_exact
         self.renamed_conflicts += other.renamed_conflicts
+        self.selected_files.extend(other.selected_files)
 
 
 def sha256_file(path: Path) -> str:
@@ -206,12 +208,12 @@ def _copy_source_file(source: Path, destination: Path, source_root: Path) -> Ing
         if not destination.is_file():
             raise BootstrapError(f"A source file conflicts with an existing folder: {destination.name}")
         if sha256_file(destination) == source_digest:
-            return IngestResult(skipped_exact=1)
+            return IngestResult(skipped_exact=1, selected_files=[str(destination)])
         attempt = 1
         candidate = _conflict_name(destination, source_digest, attempt)
         while candidate.exists():
             if candidate.is_file() and sha256_file(candidate) == source_digest:
-                return IngestResult(skipped_exact=1)
+                return IngestResult(skipped_exact=1, selected_files=[str(candidate)])
             attempt += 1
             candidate = _conflict_name(destination, source_digest, attempt)
         destination = candidate
@@ -219,7 +221,11 @@ def _copy_source_file(source: Path, destination: Path, source_root: Path) -> Ing
     else:
         renamed = 0
     shutil.copy2(source, destination)
-    return IngestResult(copied=1, renamed_conflicts=renamed)
+    return IngestResult(
+        copied=1,
+        renamed_conflicts=renamed,
+        selected_files=[str(destination)],
+    )
 
 
 def _select_payload_root(root: Path) -> Path:
@@ -323,19 +329,32 @@ def read_phase(workspace: Path) -> str:
         raise BootstrapError("Codex could not read the assignment's saved progress.") from exc
 
 
-def start_intake(interpreter: Path, repository: Path, workspace: Path) -> str:
+def start_intake(
+    interpreter: Path,
+    repository: Path,
+    workspace: Path,
+    selected_files: Sequence[str],
+) -> str:
     phase = read_phase(workspace)
-    if phase != "NEW":
+    if phase not in {
+        "NEW",
+        "SOURCE_INTAKE_REQUIRED",
+        "SOURCE_UPDATE_REQUIRED",
+        "BRIEFING_REQUIRED",
+    }:
         return phase
-    source_dir = workspace / "source"
-    if not any(path.is_file() for path in source_dir.rglob("*")):
+    if not selected_files:
         raise BootstrapError(
-            "The workspace is ready, but no assignment materials were found. "
-            "Ask the student for the brief and related files."
+            "The workspace is ready, but the student has not explicitly provided or "
+            "identified the assignment materials to use."
         )
+    operation = "refresh-sources" if phase == "SOURCE_UPDATE_REQUIRED" else "start"
+    command = [str(interpreter), "-m", "assignment_assistant", operation, str(workspace)]
+    for selected in selected_files:
+        command.extend(("--source", selected))
     _run(
-        (str(interpreter), "-m", "assignment_assistant", "start", str(workspace)),
-        "start assignment intake",
+        command,
+        "update assignment sources" if operation == "refresh-sources" else "start assignment intake",
         repository,
     )
     return read_phase(workspace)
@@ -372,7 +391,11 @@ def main(argv: Optional[List[str]] = None) -> int:
         result = IngestResult()
         for value in args.source:
             result.add(ingest_source_path(Path(value), workspace))
-        phase = start_intake(interpreter, repository, workspace) if args.start else read_phase(workspace)
+        phase = (
+            start_intake(interpreter, repository, workspace, result.selected_files)
+            if args.start
+            else read_phase(workspace)
+        )
     except BootstrapError as exc:
         print("Automatic setup could not finish.", file=sys.stderr)
         print(str(exc), file=sys.stderr)

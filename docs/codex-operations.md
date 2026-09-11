@@ -24,14 +24,33 @@ refer clearly to the briefing, architecture or reviewed slice currently presente
 
 | Student intent | Codex action | Student-facing response |
 |---|---|---|
-| “Set it up” or “start a new assignment” | Run the bootstrap without `--start` | Confirm readiness and ask for the assignment/source materials |
-| Provides files, a folder or a ZIP | Run the bootstrap with one or more `--source` values and `--start` | State how many files were added, identify unreadable formats or duplicates, and explain the next review step |
-| Provides more material before Gate 1 | Preserve it under `workspace/source/`, then rerun intake if the current state permits it | Confirm what was added and whether it changes the briefing |
-| “Where are we?” or “what next?” | Run `status` and `next-task` internally | Explain the current phase and the one decision or action needed next |
+| “Set it up” or “start a new assignment” | Run the bootstrap without `--start` | Confirm readiness and always ask which assignment/source materials to use |
+| Provides files, a folder or a ZIP | Run the bootstrap with one or more `--source` values and `--start`; the bootstrap passes only the copied/confirmed files into intake | State how many files were registered, identify unreadable formats or duplicates, and explain the next review step |
+| Ambient or earlier files are visible | Do not inspect or register them unless the student explicitly selects them | Explain that visibility does not establish that the material is complete or authoritative |
+| Provides more material before Gate 1 | Preserve only the explicitly supplied material, then run explicit intake again if the current state permits it | Confirm what was added and whether it changes the briefing |
+| “Where are we?” or “what next?” | Run `status` and `next-task` internally; these commands activate an overdue freshness gate | Explain the current phase and the one decision or action needed next |
 
 If `workspace/` already contains state, inspect it before acting. Resume when that is
 the user's intention. For a genuinely new assignment, create a separately named
 ignored workspace rather than deleting or replacing the existing one.
+
+## Source freshness after inactivity
+
+The default threshold is six hours since the last substantive workflow activity. It
+is checked when Codex asks for status/next work and before a substantive state change.
+It is not a background timer and does not interrupt an active working session.
+
+| Freshness response | Internal operation | Behaviour |
+|---|---|---|
+| No new or updated material | `source-freshness <workspace> no` | Restore the exact saved phase and continue |
+| New or updated material exists | `source-freshness <workspace> yes` | Stop and ask the student to provide or identify it |
+| Student supplies the update | Preserve it, then `refresh-sources <workspace> --source <selected-path>` | Keep registered sources, add only the explicit selection and write a file-level change report |
+| Change report is ready | Write `assignment/research/SOURCE_IMPACT.md`, then `resolve-source-impact` with `none`, `briefing`, `architecture` or `slices` | Resume unchanged work, reopen the affected approval phase, or route affected slices as recorded |
+
+Do not continue substantive assignment work while any source freshness, update or
+impact phase is unresolved. Do not interpret a casual acknowledgement as a freshness
+answer. An updated brief or rubric normally requires briefing or architecture review;
+new supporting teaching material may affect only future or identified slices.
 
 ## Main approval gates
 

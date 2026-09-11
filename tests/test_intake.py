@@ -15,8 +15,8 @@ class IntakeTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             workspace = Path(temporary) / "assignment"
             initialise_workspace(workspace)
-            with self.assertRaisesRegex(WorkspaceError, "No source files"):
-                run_intake(workspace)
+            with self.assertRaisesRegex(WorkspaceError, "No explicitly selected source files"):
+                run_intake(workspace, ["source"])
 
     def test_hash_deduplication_and_consultancy_routing(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -27,7 +27,7 @@ class IntakeTests(unittest.TestCase):
             (source / "brief.md").write_text(content, encoding="utf-8")
             (source / "copied-brief.md").write_text(content, encoding="utf-8")
 
-            result = run_intake(workspace)
+            result = run_intake(workspace, ["source"])
             manifest = result["manifest"]
             self.assertEqual(manifest["source_count"], 2)
             self.assertEqual(manifest["unique_hash_count"], 1)
@@ -51,7 +51,7 @@ class IntakeTests(unittest.TestCase):
                     "</w:p></w:body></w:document>",
                 )
 
-            result = run_intake(workspace)
+            result = run_intake(workspace, ["source"])
             record = result["manifest"]["records"][0]
             self.assertEqual(record["extraction_status"], "derived-xml")
             reading_copy = workspace / record["reading_copy"]

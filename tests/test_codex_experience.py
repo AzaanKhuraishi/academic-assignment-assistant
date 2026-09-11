@@ -21,6 +21,8 @@ class CodexExperienceTests(unittest.TestCase):
         self.assertIn("Do not ask the user to create a Python", instructions)
         self.assertIn("docs/codex-operations.md", instructions)
         self.assertIn("Do not weaken a gate", instructions)
+        self.assertIn("Do not inspect or register them unless the user explicitly selects them", instructions)
+        self.assertIn("six hours of inactivity", instructions)
 
     def test_bootstrap_script_is_available_from_a_fresh_checkout(self):
         script = self.repository / "scripts/codex_bootstrap.py"

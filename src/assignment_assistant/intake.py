@@ -10,7 +10,7 @@ import zipfile
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Tuple
+from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
 from .storage import WorkspaceError, write_json
 
@@ -167,7 +167,43 @@ def iter_source_files(source_dir: Path) -> Iterable[Path]:
         yield path
 
 
-def run_intake(workspace: Path) -> Dict[str, object]:
+def selected_source_files(workspace: Path, selections: Sequence[str]) -> List[Path]:
+    """Resolve an explicit source selection without admitting ambient workspace files."""
+
+    source_dir = (workspace / "source").resolve()
+    selected: List[Path] = []
+    seen = set()
+    for value in selections:
+        supplied = Path(value)
+        candidate = supplied if supplied.is_absolute() else workspace / supplied
+        resolved = candidate.expanduser().resolve()
+        try:
+            resolved.relative_to(source_dir)
+        except ValueError as exc:
+            raise WorkspaceError(
+                f"Selected assignment source must be inside {source_dir}: {resolved}"
+            ) from exc
+        candidates = list(iter_source_files(resolved)) if resolved.is_dir() else [resolved]
+        for path in candidates:
+            if path.is_symlink() or not path.is_file():
+                raise WorkspaceError(f"Selected assignment source is not a regular file: {path}")
+            relative = path.relative_to(source_dir)
+            if any(part.startswith(".") for part in relative.parts) or path.name.startswith("~$"):
+                continue
+            key = str(path)
+            if key not in seen:
+                selected.append(path)
+                seen.add(key)
+    if not selected:
+        raise WorkspaceError(
+            "No explicitly selected source files were found. Ask the user to provide or identify "
+            "the assignment material to use."
+        )
+    return sorted(selected)
+
+
+def run_intake(workspace: Path, selections: Sequence[str]) -> Dict[str, object]:
+    workspace = workspace.expanduser().resolve()
     source_dir = workspace / "source"
     derived_dir = workspace / "derived" / "reading"
     research_dir = workspace / "assignment" / "research"
@@ -180,7 +216,8 @@ def run_intake(workspace: Path) -> Dict[str, object]:
     routing_text_parts: List[str] = []
     provenance: List[Dict[str, str]] = []
 
-    for path in iter_source_files(source_dir):
+    selected_files = selected_source_files(workspace, selections)
+    for path in selected_files:
         relative = path.relative_to(workspace)
         digest = sha256_file(path)
         duplicate_of = canonical_by_hash.get(digest)
@@ -278,6 +315,9 @@ def run_intake(workspace: Path) -> Dict[str, object]:
         "manifest_path": manifest_path.relative_to(workspace).as_posix(),
         "index_path": index_path.relative_to(workspace).as_posix(),
         "routing_text": "\n".join(routing_text_parts),
+        "registered_sources": [
+            path.relative_to(workspace).as_posix() for path in selected_files
+        ],
     }
 
 

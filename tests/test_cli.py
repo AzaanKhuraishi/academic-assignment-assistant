@@ -1,12 +1,14 @@
 import contextlib
 import io
+import json
 import tempfile
 import unittest
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from assignment_assistant.cli import main
 from assignment_assistant.models import AssignmentPhase
-from assignment_assistant.storage import load_state
+from assignment_assistant.storage import load_state, save_state
 
 
 class CliIntegrationTests(unittest.TestCase):
@@ -25,7 +27,9 @@ class CliIntegrationTests(unittest.TestCase):
                 "A consultancy client assignment using SSM and stakeholder analysis.",
                 encoding="utf-8",
             )
-            code, output, _ = self.call(["start", str(workspace)])
+            code, output, _ = self.call(
+                ["start", str(workspace), "--source", "source/brief.md"]
+            )
             self.assertEqual(code, 0)
             self.assertIn("Discipline suggestion: consultancy", output)
 
@@ -61,7 +65,10 @@ class CliIntegrationTests(unittest.TestCase):
             (workspace / "source/brief.md").write_text(
                 "Write an assessed report from the supplied material.", encoding="utf-8"
             )
-            self.assertEqual(self.call(["start", str(workspace)])[0], 0)
+            self.assertEqual(
+                self.call(["start", str(workspace), "--source", "source/brief.md"])[0],
+                0,
+            )
             state = load_state(workspace)
             self.assertTrue(state.routing["requires_confirmation"])
             self.assertEqual(
@@ -77,6 +84,80 @@ class CliIntegrationTests(unittest.TestCase):
                 "discipline: humanities",
                 (workspace / "assignment-assistant.yaml").read_text(encoding="utf-8"),
             )
+
+    def test_initial_intake_indexes_only_explicitly_selected_sources(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            workspace = Path(temporary) / "assignment"
+            self.assertEqual(self.call(["init", str(workspace)])[0], 0)
+            (workspace / "source/selected.md").write_text("Selected brief", encoding="utf-8")
+            (workspace / "source/ambient.md").write_text("Partial old material", encoding="utf-8")
+
+            code, _, error = self.call(
+                ["start", str(workspace), "--source", "source/selected.md"]
+            )
+
+            self.assertEqual(code, 0, error)
+            state = load_state(workspace)
+            self.assertEqual(state.registered_sources, ["source/selected.md"])
+            manifest = json.loads((workspace / state.source_manifest).read_text(encoding="utf-8"))
+            self.assertEqual([item["path"] for item in manifest["records"]], ["source/selected.md"])
+
+    def test_six_hour_resume_gate_supports_incremental_update_and_impact(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            workspace = Path(temporary) / "assignment"
+            self.assertEqual(self.call(["init", str(workspace)])[0], 0)
+            (workspace / "source/brief.md").write_text("Original brief", encoding="utf-8")
+            self.assertEqual(
+                self.call(["start", str(workspace), "--source", "source/brief.md"])[0],
+                0,
+            )
+            state = load_state(workspace)
+            original_phase = state.phase
+            state.last_substantive_activity_at = (
+                datetime.now(timezone.utc) - timedelta(hours=6, minutes=1)
+            ).replace(microsecond=0).isoformat()
+            save_state(workspace, state)
+
+            self.assertEqual(self.call(["next-task", str(workspace)])[0], 0)
+            self.assertEqual(
+                load_state(workspace).phase,
+                AssignmentPhase.SOURCE_FRESHNESS_REQUIRED.value,
+            )
+            self.assertEqual(self.call(["source-freshness", str(workspace), "yes"])[0], 0)
+            (workspace / "source/new-guidance.md").write_text(
+                "New module guidance", encoding="utf-8"
+            )
+            code, output, error = self.call(
+                [
+                    "refresh-sources",
+                    str(workspace),
+                    "--source",
+                    "source/new-guidance.md",
+                ]
+            )
+            self.assertEqual(code, 0, error)
+            self.assertIn('"source/new-guidance.md"', output)
+            state = load_state(workspace)
+            self.assertEqual(state.phase, AssignmentPhase.SOURCE_IMPACT_REQUIRED.value)
+            self.assertEqual(
+                state.registered_sources,
+                ["source/brief.md", "source/new-guidance.md"],
+            )
+
+            impact = workspace / "assignment/research/SOURCE_IMPACT.md"
+            impact.write_text("No existing work is affected.", encoding="utf-8")
+            self.assertEqual(
+                self.call(
+                    [
+                        "resolve-source-impact",
+                        str(workspace),
+                        "assignment/research/SOURCE_IMPACT.md",
+                        "none",
+                    ]
+                )[0],
+                0,
+            )
+            self.assertEqual(load_state(workspace).phase, original_phase)
 
 
 if __name__ == "__main__":

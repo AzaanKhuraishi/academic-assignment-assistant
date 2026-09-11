@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 from .models import (
     Approval,
@@ -38,8 +38,17 @@ def utc_now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
 
 
-def _event(state: AssignmentState, kind: str, message: str, **data: object) -> None:
+def _event(
+    state: AssignmentState,
+    kind: str,
+    message: str,
+    *,
+    substantive: bool = True,
+    **data: object,
+) -> None:
     state.updated_at = utc_now()
+    if substantive:
+        state.last_substantive_activity_at = state.updated_at
     state.events.append(Event(state.updated_at, kind, message, data))
 
 
@@ -49,15 +58,191 @@ def record_intake(
     manifest_path: str,
     index_path: str,
     routing: Dict[str, object],
+    registered_sources: Optional[List[str]] = None,
 ) -> None:
-    if state.phase not in {AssignmentPhase.NEW.value, AssignmentPhase.BRIEFING_REQUIRED.value}:
+    if state.phase not in {
+        AssignmentPhase.NEW.value,
+        AssignmentPhase.SOURCE_INTAKE_REQUIRED.value,
+        AssignmentPhase.BRIEFING_REQUIRED.value,
+    }:
         raise TransitionError(f"Cannot run intake while phase is {state.phase}")
+    selected = sorted(set(registered_sources or []))
+    if not selected:
+        raise TransitionError(
+            "Source intake requires files explicitly provided or identified by the user"
+        )
     state.config = dict(config)
     state.source_manifest = manifest_path
     state.source_index = index_path
+    state.registered_sources = selected
+    state.source_confirmed_at = utc_now()
     state.routing = dict(routing)
     state.phase = AssignmentPhase.BRIEFING_REQUIRED.value
-    _event(state, "intake.completed", "Source intake completed", routing=routing)
+    _event(
+        state,
+        "intake.completed",
+        "Explicitly selected source intake completed",
+        routing=routing,
+        registered_source_count=len(selected),
+    )
+
+
+def require_source_intake_if_unconfirmed(state: AssignmentState) -> bool:
+    """Move legacy or incomplete state behind the explicit initial source gate."""
+
+    if state.registered_sources or state.phase in {
+        AssignmentPhase.NEW.value,
+        AssignmentPhase.SOURCE_INTAKE_REQUIRED.value,
+    }:
+        return False
+    state.phase = AssignmentPhase.SOURCE_INTAKE_REQUIRED.value
+    _event(
+        state,
+        "source_intake.required",
+        "Explicit assignment source selection required",
+        substantive=False,
+    )
+    return True
+
+
+def require_source_freshness_if_due(
+    state: AssignmentState,
+    threshold_hours: int = 6,
+    now: Optional[datetime] = None,
+) -> bool:
+    """Pause a resumed assignment when its last substantive activity is stale."""
+
+    if not state.registered_sources or state.phase in {
+        AssignmentPhase.NEW.value,
+        AssignmentPhase.SOURCE_INTAKE_REQUIRED.value,
+        AssignmentPhase.SOURCE_FRESHNESS_REQUIRED.value,
+        AssignmentPhase.SOURCE_UPDATE_REQUIRED.value,
+        AssignmentPhase.SOURCE_IMPACT_REQUIRED.value,
+        AssignmentPhase.READY_FOR_HANDOFF.value,
+    }:
+        return False
+    reference_text = state.last_substantive_activity_at or state.updated_at
+    try:
+        reference = datetime.fromisoformat(reference_text)
+    except ValueError as exc:
+        raise TransitionError("Saved activity timestamp is invalid") from exc
+    current = now or datetime.now(timezone.utc)
+    if reference.tzinfo is None:
+        reference = reference.replace(tzinfo=timezone.utc)
+    if current - reference < timedelta(hours=threshold_hours):
+        return False
+    state.freshness_resume_phase = state.phase
+    state.phase = AssignmentPhase.SOURCE_FRESHNESS_REQUIRED.value
+    _event(
+        state,
+        "source_freshness.required",
+        "Source freshness confirmation required after inactivity",
+        substantive=False,
+        threshold_hours=threshold_hours,
+        inactive_since=reference.isoformat(),
+    )
+    return True
+
+
+def record_source_freshness_answer(state: AssignmentState, has_updates: bool) -> None:
+    if state.phase != AssignmentPhase.SOURCE_FRESHNESS_REQUIRED.value:
+        raise TransitionError(
+            f"Source freshness cannot be answered while phase is {state.phase}"
+        )
+    if has_updates:
+        state.phase = AssignmentPhase.SOURCE_UPDATE_REQUIRED.value
+        _event(
+            state,
+            "source_freshness.updated",
+            "User reported new or updated assignment material",
+        )
+        return
+    state.phase = state.freshness_resume_phase or AssignmentPhase.BRIEFING_REQUIRED.value
+    state.freshness_resume_phase = None
+    _event(
+        state,
+        "source_freshness.current",
+        "User confirmed that no new or updated assignment material is available",
+    )
+
+
+def record_source_update(
+    state: AssignmentState,
+    manifest_path: str,
+    index_path: str,
+    routing: Dict[str, object],
+    registered_sources: List[str],
+    change_report: str,
+    changes: Dict[str, object],
+) -> None:
+    if state.phase != AssignmentPhase.SOURCE_UPDATE_REQUIRED.value:
+        raise TransitionError(f"Cannot update sources while phase is {state.phase}")
+    state.source_manifest = manifest_path
+    state.source_index = index_path
+    state.routing = dict(routing)
+    state.registered_sources = sorted(set(registered_sources))
+    state.source_confirmed_at = utc_now()
+    state.pending_source_change_report = change_report
+    state.source_updates.append(
+        {
+            "recorded_at": utc_now(),
+            "change_report": change_report,
+            "changes": dict(changes),
+            "impact": None,
+            "impact_artifact": None,
+        }
+    )
+    state.phase = AssignmentPhase.SOURCE_IMPACT_REQUIRED.value
+    _event(
+        state,
+        "source_update.completed",
+        "Incremental source intake completed; impact assessment required",
+        change_report=change_report,
+        changes=changes,
+    )
+
+
+def resolve_source_impact(
+    state: AssignmentState,
+    workspace: Path,
+    artifact: Path,
+    impact: str,
+) -> None:
+    if state.phase != AssignmentPhase.SOURCE_IMPACT_REQUIRED.value:
+        raise TransitionError(f"Source impact cannot be resolved while phase is {state.phase}")
+    checked = ensure_within_workspace(workspace, artifact)
+    if not checked.is_file():
+        raise WorkspaceError(f"Source impact artifact does not exist: {checked}")
+    if impact not in {"none", "briefing", "architecture", "slices"}:
+        raise TransitionError("Source impact must be none, briefing, architecture, or slices")
+    relative = checked.relative_to(workspace.resolve()).as_posix()
+    update = state.source_updates[-1]
+    update["impact"] = impact
+    update["impact_artifact"] = relative
+    update["resolved_at"] = utc_now()
+    if impact == "briefing":
+        state.briefing_artifact = None
+        state.architecture_artifact = None
+        state.phase = AssignmentPhase.BRIEFING_REQUIRED.value
+    elif impact == "architecture":
+        state.architecture_artifact = None
+        gate_1_approved = any(item.gate == "gate1" for item in state.approvals)
+        state.phase = (
+            AssignmentPhase.ARCHITECTURE_REQUIRED.value
+            if gate_1_approved
+            else AssignmentPhase.BRIEFING_REQUIRED.value
+        )
+    else:
+        state.phase = state.freshness_resume_phase or AssignmentPhase.BRIEFING_REQUIRED.value
+    state.freshness_resume_phase = None
+    state.pending_source_change_report = None
+    _event(
+        state,
+        "source_impact.resolved",
+        f"Source update impact recorded as {impact}",
+        impact=impact,
+        artifact=relative,
+    )
 
 
 def confirm_discipline(state: AssignmentState, discipline: str) -> None:

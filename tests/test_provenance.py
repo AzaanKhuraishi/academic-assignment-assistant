@@ -53,7 +53,7 @@ class ProvenanceTests(unittest.TestCase):
             source.write_bytes(b"synthetic-media")
             derived.write_text("Synthetic transcript", encoding="utf-8")
             register_derivation(workspace, source, derived, "test transcription", "checked")
-            run_intake(workspace)
+            run_intake(workspace, ["source"])
             payload = json.loads(
                 (workspace / "assignment/research/derivation-provenance.json").read_text(
                     encoding="utf-8"

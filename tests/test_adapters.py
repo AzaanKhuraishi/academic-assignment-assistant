@@ -15,6 +15,15 @@ from assignment_assistant.workspace import initialise_workspace
 
 
 class CodexAdapterTests(unittest.TestCase):
+    def test_initial_packet_requires_explicit_sources_and_rejects_ambient_material(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            workspace = Path(temporary) / "assignment"
+            state = initialise_workspace(workspace)
+            packet = CodexAdapter().render_next_task(workspace, state)
+        self.assertIn("explicitly ask the user", packet)
+        self.assertIn("ambient files", packet)
+        self.assertIn("--source <confirmed-source-path>", packet)
+
     def test_briefing_packet_names_contract_overlay_and_record_command(self):
         with tempfile.TemporaryDirectory() as temporary:
             workspace = Path(temporary) / "assignment"
@@ -25,6 +34,7 @@ class CodexAdapterTests(unittest.TestCase):
                 "assignment/research/source-manifest.json",
                 "SOURCE_INDEX.md",
                 {"discipline": "consultancy"},
+                ["source/brief.md"],
             )
             packet = CodexAdapter().render_next_task(workspace, state)
         self.assertIn("agents/contracts/brief-interpreter.md", packet)
@@ -43,6 +53,7 @@ class CodexAdapterTests(unittest.TestCase):
                 "manifest.json",
                 "SOURCE_INDEX.md",
                 {"discipline": "generic"},
+                ["source/brief.md"],
             )
             briefing = workspace / "assignment/briefing/briefing.md"
             briefing.write_text("Briefing", encoding="utf-8")
@@ -71,11 +82,27 @@ class CodexAdapterTests(unittest.TestCase):
                     "requires_confirmation": True,
                     "scores": {"cybersecurity": 1},
                 },
+                ["source/brief.md"],
             )
             packet = CodexAdapter().render_next_task(workspace, state)
         self.assertIn("agents/contracts/subject-router.md", packet)
         self.assertIn("confirm-discipline", packet)
         self.assertNotIn("submit-briefing", packet)
+
+    def test_freshness_and_update_packets_stop_for_user_source_decisions(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            workspace = Path(temporary) / "assignment"
+            state = initialise_workspace(workspace)
+            state.registered_sources = ["source/brief.md"]
+            state.phase = "SOURCE_FRESHNESS_REQUIRED"
+            packet = CodexAdapter().render_next_task(workspace, state)
+            self.assertIn("Has any new or updated", packet)
+            self.assertIn("source-freshness", packet)
+
+            state.phase = "SOURCE_UPDATE_REQUIRED"
+            packet = CodexAdapter().render_next_task(workspace, state)
+            self.assertIn("provide or identify the new or updated material", packet)
+            self.assertIn("refresh-sources", packet)
 
 
 if __name__ == "__main__":

@@ -22,8 +22,10 @@ or an equivalent natural-language request:
    `python3 scripts/codex_bootstrap.py --workspace workspace`.
 3. If the platform exposes Python under another normal Python 3 launcher, Codex may
    retry once with that launcher. Do not ask the user to type the command.
-4. If setup succeeds and no source material is present, ask the user to attach their
-   assignment files or provide an accessible file, ZIP or folder location.
+4. Always ask the user to attach or identify the assignment files, ZIP or folder they
+   want this assignment to use. Files, partial intake and chat context already visible
+   in the Codex session or workspace are not authoritative merely because they are
+   available. Do not inspect or register them unless the user explicitly selects them.
 5. When the user supplies a source location, run:
    `python3 scripts/codex_bootstrap.py --workspace workspace --source <path> --start`.
    Repeat `--source <path>` for multiple locations. Preserve source files and inspect
@@ -52,22 +54,28 @@ workflow failure.
 
 ## Operating an assignment
 
-1. Use the CLI and state machine internally for every transition. Translate the
+1. At the beginning of resumed substantive work, generate the current task packet.
+   The engine pauses for source freshness after six hours of inactivity. Ask whether
+   new or updated assignment/module material is available and record an explicit yes
+   or no. A no resumes the saved phase. A yes pauses until the user supplies the new
+   material; ingest that material incrementally, report the file-level changes, assess
+   their effect on existing work and record the impact before continuing.
+2. Use the CLI and state machine internally for every transition. Translate the
    user's natural-language approval, correction or rejection according to
    `docs/codex-operations.md`.
-2. Consult `<workspace>/SOURCE_INDEX.md`; do not ingest exact duplicate placements.
-3. Read governing documents completely. Use derived text for ordinary reading and
+3. Consult `<workspace>/SOURCE_INDEX.md`; do not ingest exact duplicate placements.
+4. Read governing documents completely. Use derived text for ordinary reading and
    originals when layout, images, equations, notes or exact wording matter.
-4. Produce the Gate 1 briefing and stop for explicit user approval.
-5. Produce the rubric-mapped architecture and stop for explicit user approval.
-6. Develop approved vertical slices through the recorded state sequence. Use the
+5. Produce the Gate 1 briefing and stop for explicit user approval.
+6. Produce the rubric-mapped architecture and stop for explicit user approval.
+7. Develop approved vertical slices through the recorded state sequence. Use the
    evidence-matrix, research-log and vertical-slice templates generated under
    `<workspace>/.assignment-assistant/templates/`.
-7. Route failed work to the responsible stage and preserve feedback and retry history.
-8. Stop in `REQUIRES_USER_INPUT` when personal experience, a material choice or
+8. Route failed work to the responsible stage and preserve feedback and retry history.
+9. Stop in `REQUIRES_USER_INPUT` when personal experience, a material choice or
    inaccessible evidence cannot be verified.
-9. Run the whole-assignment quality gate and visually inspect layout-dependent output.
-10. Hand the work to the user. Never submit or impersonate the user.
+10. Run the whole-assignment quality gate and visually inspect layout-dependent output.
+11. Hand the work to the user. Never submit or impersonate the user.
 
 Never fabricate facts, quotations, references, page numbers, data, access dates,
 interviews or personal experience. Keep originals read-only. Keep real assignment

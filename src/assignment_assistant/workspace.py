@@ -8,7 +8,7 @@ from pathlib import Path
 
 from .capabilities import write_capability_manifest
 from .configuration import DEFAULT_CONFIG, render_default_config
-from .models import AssignmentState, Event
+from .models import AssignmentPhase, AssignmentState, Event
 from .storage import CONTROL_DIR, WorkspaceError, save_state
 
 
@@ -162,10 +162,12 @@ def initialise_workspace(workspace: Path) -> AssignmentState:
     now = utc_now()
     capability_path = write_capability_manifest(workspace)
     state = AssignmentState(
-        schema_version=1,
+        schema_version=2,
         assignment_id=str(uuid.uuid4()),
         created_at=now,
         updated_at=now,
+        phase=AssignmentPhase.SOURCE_INTAKE_REQUIRED.value,
+        last_substantive_activity_at=now,
         config=dict(DEFAULT_CONFIG),
         capability_manifest=capability_path.relative_to(workspace).as_posix(),
         events=[Event(now, "workspace.initialised", "Workspace initialised")],
