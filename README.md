@@ -1,38 +1,74 @@
 # Academic Assignment Assistant
 
-Academic Assignment Assistant is a local-first workflow engine for evidence-led
-university work. It turns a folder of assignment material into an auditable process:
-intake, interpretation, architecture, research, vertical-slice development,
-validation and user handoff.
+Academic Assignment Assistant lets a student work through an evidence-led
+university assignment by talking to Codex. Codex handles the technical setup and
+operates the protected workflow behind the scenes.
 
-The project is deliberately more than a prompt collection. Markdown defines the
-academic method and specialist contracts; Python executes the state machine,
-records approvals, indexes sources and routes rejected work to the responsible stage.
+## Codex Quick Start
 
-## What it protects
+1. Connect GitHub to Codex and give Codex access to this repository.
+2. Open this repository in a new Codex task.
+3. Say: **“Set up Academic Assignment Assistant and start a new assignment.”**
+4. When Codex asks, provide your assignment files, a ZIP source pack, or the
+   location of a folder Codex can access.
+5. Review Codex's interpretation and plan, then approve or correct them in the
+   conversation as the work progresses.
 
-- Supplied originals are indexed without being overwritten.
-- Exact duplicate files are identified by SHA-256.
-- Facts, analysis, external evidence and user experience remain distinguishable.
-- Gate 1 prevents work from proceeding on a misread brief.
-- Gate 2 prevents prose drafting before the argument and word budget are approved.
-- Missing personal experience creates a hard user-input pause.
-- The system ends at a reviewable handoff. It does not submit work for the student.
+That is the complete ordinary-user setup. The student does not need to install
+anything manually, use a terminal, edit configuration files or understand the
+workflow engine.
 
-## Quick start
+## What Codex does for the student
 
-Python 3.9 or later is sufficient; the core has no third-party runtime dependencies.
+Codex reads `AGENTS.md`, checks the repository and computer, prepares an isolated
+local environment, installs the internal engine and creates a private assignment
+workspace. It then places the supplied materials in the correct location, indexes
+them without altering the originals and starts the intake workflow.
+
+Codex translates ordinary requests such as “start my assignment”, “I approve the
+briefing”, “this argument needs more evidence” and “accept this section” into the
+appropriate protected workflow operations. Command-line details remain hidden
+unless the user explicitly asks to see them.
+
+If automatic setup cannot finish, Codex explains the problem and the required next
+step in plain language. It does not present a terminal dump as the user experience,
+and it does not delete or overwrite the student's source files.
+
+## What the student sees
+
+- A request for the brief, rubric, teaching material and any supplied case files.
+- A concise assessment briefing to approve or correct before answer design begins.
+- A rubric-mapped assignment plan to approve or correct before prose drafting.
+- Focused questions where personal experience, ambiguous instructions or a
+  material decision require the student's input.
+- Reviewable sections and clear feedback points as the assignment develops.
+- A final quality-checked handoff. Submission always remains the student's action.
+
+## Safeguards that remain active
+
+- Supplied originals are preserved and exact duplicates are detected by SHA-256.
+- Facts, external evidence, analysis and personal experience remain distinct.
+- Gate 1 blocks progress until the student approves the interpretation.
+- Gate 2 blocks drafting until the student approves the architecture and word budget.
+- Rejected work is routed to the stage that caused the problem instead of receiving
+  a superficial rewrite.
+- Missing personal experience creates a hard pause for authentic student input.
+- The system cannot submit work or impersonate the student.
+
+## Advanced / Local / Developer Setup
+
+The following section is for contributors and users who deliberately want to operate
+the implementation themselves. Ordinary students can ignore it.
+
+Python 3.9 or later is required. The core has no third-party runtime dependencies.
 
 ```bash
-python -m venv .venv
+python3 -m venv .venv
 . .venv/bin/activate
+python -m pip install --upgrade pip
 python -m pip install -e .
 assignment-assistant init workspace
 ```
-
-The installer may fetch standard Python build tooling (`setuptools` and `wheel`) when
-it is not already available. The application itself has no third-party runtime
-dependencies.
 
 Put the brief, rubric, teaching material and supplied case files into
 `workspace/source/`, then run:
@@ -43,104 +79,50 @@ assignment-assistant next-task workspace
 assignment-assistant status workspace
 ```
 
-If automatic routing is weak or mixed, the task packet stops and asks the user to
-confirm a discipline. The decision is recorded with:
+The Codex bootstrap used for the conversational experience is also available to
+developers:
 
 ```bash
-assignment-assistant confirm-discipline workspace consultancy
+python3 scripts/codex_bootstrap.py --workspace workspace
+python3 scripts/codex_bootstrap.py --workspace workspace \
+  --source "/path/to/source-pack.zip" --start
 ```
 
-Inspect the built-in and runtime-required capabilities with:
+The installer may fetch standard Python build tooling (`setuptools` and `wheel`) if
+it is not already available. Run `assignment-assistant --help` for the full internal
+command surface. See `docs/codex-operations.md` for the natural-language mapping used
+by Codex and `CONTRIBUTING.md` for development guidance.
 
-```bash
-assignment-assistant capabilities workspace
-```
+## Technical architecture
 
-In Codex, the beginner-facing instruction is simply:
-
-> Start assignment intake in `workspace` and follow the repository workflow.
-
-Codex reads `AGENTS.md`, runs the intake command, prepares the Gate 1 briefing and
-stops for the user's review.
-
-## Human approval flow
-
-After the runtime produces `assignment/briefing/ASSESSMENT_BRIEFING.md`:
-
-```bash
-assignment-assistant submit-briefing workspace \
-  workspace/assignment/briefing/ASSESSMENT_BRIEFING.md
-assignment-assistant approve workspace gate1 --reviewer user
-```
-
-After the approved interpretation has been turned into an architecture:
-
-```bash
-assignment-assistant submit-architecture workspace \
-  workspace/assignment/working/ASSIGNMENT_ARCHITECTURE.md
-assignment-assistant approve workspace gate2 --reviewer user
-```
-
-The runtime then creates and develops vertical slices. Moving from `USER_REVIEW` to
-`ACCEPTED` requires the dedicated human-recording command:
-
-```bash
-assignment-assistant slice-accept workspace diagnosis --reviewer user
-```
-
-Run `assignment-assistant --help` for the remaining slice, rejection and
-final-validation commands.
-
-## Repository map
+The executable architecture remains the source of workflow truth. Markdown defines
+the academic method and specialist contracts; Python executes the state machine,
+records approvals, indexes sources and routes rejected work to the responsible stage.
 
 - `ACADEMIC_WORKFLOW.md` — canonical universal method
-- `AGENTS.md` — concise instructions for Codex
+- `AGENTS.md` — Codex entry point and automatic-operation contract
 - `ARCHITECTURE.md` — system design and state model
-- `agents/contracts/` — bounded input/output contracts
+- `agents/contracts/` — bounded specialist responsibilities
 - `overlays/` — discipline-specific additions
 - `policies/` — evidence, integrity, privacy and quality rules
+- `scripts/codex_bootstrap.py` — idempotent Codex setup and source-pack intake
 - `src/assignment_assistant/` — executable workflow engine
 - `templates/` — reusable workspace artefacts
 - `examples/` — synthetic demonstrations only
 - `tests/` — unit and end-to-end workflow tests
 
-## Scope of version 0.1
+## Current scope
 
-The current Codex adapter produces state-aware task packets for an existing Codex
-environment. It does not call a hosted model API. Plain text, Markdown, DOCX, PPTX
-and ODT can be indexed or converted with the dependency-free extractors. PDFs are
-preserved and flagged for a capable PDF extractor; video is preserved and flagged
-for transcription. These capability gaps are explicit so unread material cannot be
-silently treated as understood.
+The Codex adapter operates inside an authorised Codex environment; it does not call
+a hosted model API itself. Plain text, Markdown, DOCX, PPTX and ODT can be indexed or
+converted with dependency-free extractors. PDFs are preserved and flagged for a
+capable PDF extractor. Video is preserved and flagged for transcription. A runtime
+must register generated reading copies and transcripts with provenance before their
+content is treated as read.
 
-For a PDF, DOCX or PPTX final deliverable, copy the generated
-`.assignment-assistant/templates/visual-inspection.json` into `assignment/final/`,
-record the rendered files that were inspected, and set `passed` only after the visual
-review is complete. The quality gate blocks handoff without this record.
-
-When a runtime creates a PDF reading copy or media transcript, place it under
-`derived/` and register both hashes and the method:
-
-```bash
-assignment-assistant register-derived workspace source/lecture.mp4 \
-  derived/transcripts/lecture.md --method "checked speech-to-text" \
-  --verification-status checked
-```
-
-## Privacy and repository hygiene
-
-Real assignments belong in an ignored `workspace/` or in a directory outside this
-repository. Never commit course files, private cases, personal data, drafts or model
-state. The examples in this repository are fictional.
-
-## Development
-
-```bash
-PYTHONPATH=src python -m unittest discover -s tests -v
-```
-
-See `CONTRIBUTING.md` for extension rules and `docs/adding-overlays.md` for adding a
-discipline overlay.
+Real assignments belong in the ignored `workspace/` directory or another private
+location. Never commit course files, private cases, personal data, drafts or model
+state. The repository examples are fictional.
 
 ## Licence
 

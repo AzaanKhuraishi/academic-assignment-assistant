@@ -28,6 +28,35 @@ the auditable source of workflow truth.
 
 In concise form: **Markdown defines behaviour; code executes the graph.**
 
+## Conversational user boundary
+
+The primary interface is a Codex conversation. A student states their intent and
+provides source material; Codex reads `AGENTS.md`, runs the bootstrap and translates
+the conversation into internal CLI/state-machine transitions. Python, environment
+management, configuration and task packets remain implementation infrastructure.
+
+`scripts/codex_bootstrap.py` provides an idempotent bridge from a fresh checkout. It
+checks the Python prerequisite, prepares the private environment, installs the local
+engine, creates an ignored workspace and can safely import a file, directory or ZIP
+before starting intake. It never replaces existing assignment state or overwrites a
+different source file with the same name.
+
+```text
+student conversation
+        ↓
+AGENTS.md + Codex operations map
+        ↓
+automatic bootstrap / source placement
+        ↓
+CLI + persisted state machine
+        ↓
+plain-language checkpoint and next question
+```
+
+The conversational layer may hide technical complexity, but it cannot authorise a
+transition that the state machine rejects. Human gates therefore remain control
+boundaries rather than conversational conventions.
+
 ## Horizontal architecture, vertical execution
 
 The system first plans the whole answer horizontally: thesis, sections, rubric
@@ -88,8 +117,9 @@ overrides automatic routing.
 
 The core does not assume a particular model provider. A runtime adapter turns current
 state into a bounded next-action packet. Version 0.1 ships a Codex adapter designed for
-an existing local Codex session. Later adapters can call other runtimes without
-changing academic policy or state semantics.
+an existing Codex repository session. Its bootstrap and operations map let Codex
+operate the executable engine on behalf of a non-technical user. Later adapters can
+call other runtimes without changing academic policy or state semantics.
 
 ## Trust boundaries
 

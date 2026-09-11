@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from ..bootstrap import virtualenv_python
 from ..models import AssignmentPhase, AssignmentState, SliceStatus
 
 
@@ -19,14 +20,26 @@ class CodexAdapter:
         phase = AssignmentPhase(state.phase)
         contract = "agents/contracts/orchestrator.md"
         next_command = ""
+        repository = Path(__file__).resolve().parents[3]
+        interpreter = virtualenv_python(repository / ".venv")
+        engine = f'"{interpreter}" -m assignment_assistant'
+        quoted_workspace = f'"{workspace}"'
         common = (
             "Use UK English. Do not invent facts, citations, quotations, page numbers, "
-            "or personal experience. Read SOURCE_INDEX.md before opening sources.\n"
+            "or personal experience. Read SOURCE_INDEX.md before opening sources. "
+            "Operate the CLI and state machine yourself. Do not ask the user to run "
+            "commands or interpret internal state; report the outcome and next human "
+            "decision in plain language.\n"
         )
         if phase == AssignmentPhase.NEW:
-            action = "Run source intake before interpreting the assignment."
+            action = (
+                "Check whether source/ contains assignment material. If it is empty, ask "
+                "the user to attach files or provide an accessible file, ZIP or folder "
+                "location. Preserve supplied originals, then run source intake before "
+                "interpreting the assignment."
+            )
             contract = "agents/contracts/intake.md"
-            next_command = f"assignment-assistant start {workspace}"
+            next_command = f"{engine} start {quoted_workspace}"
         elif phase == AssignmentPhase.BRIEFING_REQUIRED:
             if state.routing.get("requires_confirmation"):
                 contract = "agents/contracts/subject-router.md"
@@ -36,7 +49,7 @@ class CodexAdapter:
                     "Explain the recorded scores and mixed or weak evidence."
                 )
                 next_command = (
-                    f"assignment-assistant confirm-discipline {workspace} <discipline>"
+                    f"{engine} confirm-discipline {quoted_workspace} <discipline>"
                 )
             else:
                 contract = "agents/contracts/brief-interpreter.md"
@@ -47,7 +60,7 @@ class CodexAdapter:
                     "Then register it with the submit-briefing command and stop for Gate 1."
                 )
                 next_command = (
-                    f"assignment-assistant submit-briefing {workspace} "
+                    f"{engine} submit-briefing {quoted_workspace} "
                     "assignment/briefing/ASSESSMENT_BRIEFING.md"
                 )
         elif phase == AssignmentPhase.WAITING_GATE_1:
@@ -60,7 +73,7 @@ class CodexAdapter:
                 "Map every section to the rubric and word budget, register it, and stop for Gate 2."
             )
             next_command = (
-                f"assignment-assistant submit-architecture {workspace} "
+                f"{engine} submit-architecture {quoted_workspace} "
                 "assignment/working/ASSIGNMENT_ARCHITECTURE.md"
             )
         elif phase == AssignmentPhase.WAITING_GATE_2:

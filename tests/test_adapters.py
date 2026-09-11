@@ -30,6 +30,8 @@ class CodexAdapterTests(unittest.TestCase):
         self.assertIn("agents/contracts/brief-interpreter.md", packet)
         self.assertIn("overlays/consultancy.md", packet)
         self.assertIn("submit-briefing", packet)
+        self.assertIn("Do not ask the user to run", packet)
+        self.assertIn("-m assignment_assistant submit-briefing", packet)
 
     def test_planned_slice_selects_research_contract(self):
         with tempfile.TemporaryDirectory() as temporary:
